@@ -1,3 +1,4 @@
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -89,9 +90,12 @@ optimizer = optim.Adam(resnet.parameters(), lr=0.001)
 num_epochs = 15  # Nombre d'époques d'entraînement
 
 # Mettre le modèle en mode d'entraînement
+print("Début de l'entraînement")
+time_start = time.time()
 resnet.train()
 
 for epoch in range(num_epochs):
+    time_epoch_start = time.time()
     running_loss = 0.0
 
     for inputs, labels in train_loader:
@@ -114,9 +118,16 @@ for epoch in range(num_epochs):
 
     # Calcul de la perte moyenne sur cette époque
     epoch_loss = running_loss / len(train_loader)
-    print(f"Époque [{epoch + 1}/{num_epochs}] - Perte : {epoch_loss:.4f}")
-
-print("Entraînement terminé.")
+    time_epoch_end = time.time()
+    duration = time_epoch_end - time_epoch_start
+    hours, reste = divmod(duration, 3600)
+    minutes, seconds = divmod(reste, 60)
+    print(f"Époque [{epoch + 1}/{num_epochs}] - Perte : {epoch_loss:.4f} - Temps : {int(hours)}:{int(minutes)}:{round(seconds, 2)}")
+time_end = time.time()
+duration = time_end - time_start
+hours, reste = divmod(duration, 3600)
+minutes, seconds = divmod(reste, 60)
+print(f"Entraînement terminé. Temps : {int(hours)}:{int(minutes)}:{round(seconds, 2)}")
 
 # Évaluation sur les données de validation
 resnet.eval()  # Mettre le modèle en mode d'évaluation
