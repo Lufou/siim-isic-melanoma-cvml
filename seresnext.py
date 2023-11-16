@@ -72,6 +72,7 @@ val_dataset = CustomDataset(val_df, transform=transforms.Compose([
 class_labels = train_df['target'].values
 class_weights = compute_class_weight('balanced', classes=[0, 1], y=class_labels)
 class_weights = torch.FloatTensor(class_weights)
+class_weights = class_weights.to(device)
 
 # Créer des chargeurs de données avec un échantillonnage équilibré
 batch_size = 64
