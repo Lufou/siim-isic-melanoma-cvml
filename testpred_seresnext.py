@@ -10,7 +10,7 @@ import timm
 import torch.nn.functional as F
 
 # Load the pretrained model from the file (make sure to adjust the file path)
-checkpoint = torch.load("hair_seresnext26d_15ep_64batch_1h44m_9712.pth")
+checkpoint = torch.load("hair_seresnext26d_15ep_64batch.pth")
 
 # Set up transformations similar to those used for training
 transform = transforms.Compose([
@@ -71,5 +71,5 @@ with torch.no_grad():
 results = pd.DataFrame({'image_name': test_image_names, 'target': probabilities})
 
 # Save the DataFrame to a CSV file
-results.to_csv('hair_seresnext26d_15ep_64batch_1h44m_9712.csv', index=False)
+results.to_csv('hair_seresnext26d_15ep_64batch.csv', index=False)
 
