@@ -10,7 +10,7 @@ import timm
 import torch.nn.functional as F
 
 # Load the pretrained model from the file (make sure to adjust the file path)
-checkpoint = torch.load("hair_seresnext26d_15ep_64batch.pth")
+checkpoint = torch.load("hair_seresnext26d_15ep_64batch_1h44m_9712.pth")
 
 # Set up transformations similar to those used for training
 transform = transforms.Compose([
@@ -48,15 +48,15 @@ test_dataset = TestDataset(test_image_names, transform=transform)
 batch_size = 64  # Choose the appropriate batch size
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Load the SE-ResNeXt model using timm
 seresnext26d = timm.create_model('seresnext26d_32x4d', pretrained=False, num_classes=2)  # Set pretrained=False
 seresnext26d.load_state_dict(checkpoint['model'])
-seresnext26d = seresnext26d.eval()
+seresnext26d = seresnext26d.to(device).eval()
 
 # Create a list to store predictions
 probabilities = []
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Use a loop to make predictions on test data
 with torch.no_grad():
@@ -71,5 +71,5 @@ with torch.no_grad():
 results = pd.DataFrame({'image_name': test_image_names, 'target': probabilities})
 
 # Save the DataFrame to a CSV file
-results.to_csv('hair_seresnext26d_15ep_64batch.csv', index=False)
+results.to_csv('hair_seresnext26d_15ep_64batch_1h44m_9712.csv', index=False)
 
