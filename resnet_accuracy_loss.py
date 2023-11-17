@@ -64,7 +64,7 @@ class_weights = compute_class_weight('balanced', classes=[0, 1], y=class_labels)
 class_weights = torch.FloatTensor(class_weights)
 
 # Créer des chargeurs de données avec un échantillonnage équilibré
-batch_size = 300
+batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
@@ -91,7 +91,7 @@ val_losses = []
 val_accuracies = []
 
 # Entraînement du modèle
-num_epochs = 5  # Nombre d'époques d'entraînement
+num_epochs = 50 # Nombre d'époques d'entraînement
 
 # Mettre le modèle en mode d'entraînement
 resnet.train()
