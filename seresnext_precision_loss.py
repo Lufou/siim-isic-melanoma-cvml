@@ -1,24 +1,32 @@
+import torchinfo
+import timm
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, models
-from torchvision.datasets.folder import default_loader
+from torchvision import transforms
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.metrics import classification_report
 import warnings
-import numpy as np
+from torchvision.datasets.folder import default_loader
+from sklearn.metrics import classification_report
 
 # Ignorer les avertissements
 warnings.filterwarnings("ignore", category=UserWarning)
 
-#Vérifier la disponibilité de la GPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Vérifiez la disponibilité des GPU
+if torch.cuda.is_available():
+    # Utilisez le GPU par défaut pour le calcul
+    device = torch.device("cuda")
+    print("Utilisation du GPU pour le calcul.")
+else:
+    device = torch.device("cpu")
+    print("Pas de GPU.")
 
 # Charger le fichier train-labels.csv
-df = pd.read_csv("train-labels_19K.csv")
+df = pd.read_csv("train-labels.csv")
 
 # Diviser les données en ensembles d'entraînement et de validation
 train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
@@ -43,7 +51,7 @@ class CustomDataset(Dataset):
         return len(self.dataframe)
 
     def __getitem__(self, idx):
-        img_name = "train-resized_19K/" + self.dataframe.iloc[idx, 0] + ".jpg"
+        img_name = "train-resized/" + self.dataframe.iloc[idx, 0] + ".jpg"
         image = default_loader(img_name)
         label = int(self.dataframe.iloc[idx, 1])  # Utilisation de la colonne "target" comme étiquette
 
@@ -71,21 +79,21 @@ batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-# Charger le modèle Resnet pré-entraîné
-resnet = models.resnet18(pretrained=True)
+# Charger le modèle SEResNeXt26d_32x4d pré-entraîné
+seresnext = timm.create_model('seresnext26d_32x4d', pretrained=True)
 
 # Modifier la dernière couche de classification
 num_classes = 2  # Deux classes
 # Récupérer la taille de la dernière couche de caractéristiques
-num_ftrs = resnet.fc.in_features
-resnet.fc = nn.Linear(num_ftrs, num_classes)
+num_ftrs = seresnext.fc.in_features
+seresnext.fc = nn.Linear(num_ftrs, num_classes)
 
 # Déplacer le modèle sur la GPU (si disponible)
-resnet = resnet.to(device)
+seresnext = seresnext.to(device)
 
 # Définition de la fonction de perte et de l'optimiseur
 criterion = nn.CrossEntropyLoss(weight=class_weights)  # Utilisation de la fonction de perte pondérée
-optimizer = optim.Adam(resnet.parameters(), lr=0.001)
+optimizer = optim.Adam(seresnext.parameters(), lr=0.001)
 
 # Initialiser les listes pour stocker les données
 train_losses = []
@@ -102,18 +110,19 @@ class1_recall = []
 class1_f1score = []
 class1_score = []
 
-
 # Entraînement du modèle
-num_epochs = 50 # Nombre d'époques d'entraînement
+num_epochs = 15  # Nombre d'époques d'entraînement
 
 # Mettre le modèle en mode d'entraînement
-resnet.train()
+print("Début de l'entraînement")
+time_start = time.time()
+seresnext.train()
 
 for epoch in range(num_epochs):
+    time_epoch_start = time.time()
     running_loss = 0.0
     correct_train = 0
     total_train = 0
-
     for inputs, labels in train_loader:
         inputs, labels = inputs.to(device), labels.to(device)
 
@@ -121,7 +130,7 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
 
         # Propagation avant (forward pass)
-        outputs = resnet(inputs)
+        outputs = seresnext(inputs)
 
         # Calcul de la perte
         loss = criterion(outputs, labels)
@@ -136,6 +145,7 @@ for epoch in range(num_epochs):
         _, predicted = torch.max(outputs.data, 1)
         total_train += labels.size(0)
         correct_train += (predicted == labels).sum().item()
+        
 
     # Calcul de la perte moyenne sur cette époque pour les données d'entraînement
     epoch_loss_train = running_loss / len(train_loader)
@@ -149,7 +159,7 @@ for epoch in range(num_epochs):
     print(f"Époque [{epoch + 1}/{num_epochs}] - Perte (entraînement) : {epoch_loss_train:.4f} - Précision (entraînement) : {accuracy_train:.2f}%")
 
     # Évaluation sur les données de validation
-    resnet.eval()  # Mettre le modèle en mode d'évaluation
+    seresnext.eval()  # Mettre le modèle en mode d'évaluation
 
     correct_val = 0
     total_val = 0
@@ -162,7 +172,7 @@ for epoch in range(num_epochs):
     with torch.no_grad():
         for inputs, labels in val_loader:
             inputs, labels = inputs.to(device), labels.to(device)
-            outputs = resnet(inputs)
+            outputs = seresnext(inputs)
             _, predicted = torch.max(outputs.data, 1)
             total_val += labels.size(0)
             correct_val += (predicted == labels).sum().item()
@@ -181,13 +191,11 @@ for epoch in range(num_epochs):
     # Afficher ou sauvegarder les résultats
     print(f"Époque [{epoch + 1}/{num_epochs}] - Perte (validation) : {epoch_loss_val:.4f} - Précision (validation) : {accuracy_val:.2f}%")
 
-    # Revenir en mode d'entraînement
-    resnet.train()
+    seresnext.train()
 
     target_names = ['Non-mélanome', 'Mélanome']  # Remplacez par les noms de vos classes
     classification_rep = classification_report(all_labels, all_predicted, target_names=target_names, output_dict=True)
 
-    # Afficher les métriques pour chaque classe
     for i, class_name in enumerate(target_names):
         metrics = classification_rep[class_name]
         precision = metrics['precision']
@@ -231,11 +239,11 @@ result_data = pd.DataFrame({
 })
 result_data.to_csv('melanoms_metrics.csv', index=False)
 
-# Sauvegarder le modèle
-torch.save({
-    'model': resnet.state_dict(),
-    'optimizer': optimizer.state_dict(),
-    'result_data': result_data
-}, 'test_accuracy_perte.pth')
-
 print("Entraînement terminé.")
+
+# Pour sauvegarder le modèle
+torch.save({
+    'model': seresnext.state_dict(),  # Enregistrez les poids du modèle
+    'optimizer': optimizer.state_dict(),  # Enregistrez l'état de l'optimiseur si nécessaire
+}, 'hair_seresnext26d_15ep_64batch.pth')
+

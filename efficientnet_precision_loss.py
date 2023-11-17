@@ -2,23 +2,24 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, models
-from torchvision.datasets.folder import default_loader
+from torchvision import transforms
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
+import timm  # Importez la bibliothèque timm pour EfficientNet
 from sklearn.metrics import classification_report
 import warnings
-import numpy as np
+from torchvision.datasets.folder import default_loader
+
 
 # Ignorer les avertissements
 warnings.filterwarnings("ignore", category=UserWarning)
 
-#Vérifier la disponibilité de la GPU
+# Vérifier la disponibilité de la GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Charger le fichier train-labels.csv
-df = pd.read_csv("train-labels_19K.csv")
+df = pd.read_csv("train-labels.csv")
 
 # Diviser les données en ensembles d'entraînement et de validation
 train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
@@ -43,7 +44,7 @@ class CustomDataset(Dataset):
         return len(self.dataframe)
 
     def __getitem__(self, idx):
-        img_name = "train-resized_19K/" + self.dataframe.iloc[idx, 0] + ".jpg"
+        img_name = "train-resized/" + self.dataframe.iloc[idx, 0] + ".jpg"
         image = default_loader(img_name)
         label = int(self.dataframe.iloc[idx, 1])  # Utilisation de la colonne "target" comme étiquette
 
@@ -71,21 +72,21 @@ batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-# Charger le modèle Resnet pré-entraîné
-resnet = models.resnet18(pretrained=True)
+# Charger le modèle EfficientNet pré-entraîné
+effnet = timm.create_model('efficientnet_b0', pretrained=True)
 
 # Modifier la dernière couche de classification
 num_classes = 2  # Deux classes
 # Récupérer la taille de la dernière couche de caractéristiques
-num_ftrs = resnet.fc.in_features
-resnet.fc = nn.Linear(num_ftrs, num_classes)
+num_ftrs = effnet.classifier.in_features
+effnet.classifier = nn.Linear(num_ftrs, num_classes)
 
 # Déplacer le modèle sur la GPU (si disponible)
-resnet = resnet.to(device)
+effnet = effnet.to(device)
 
 # Définition de la fonction de perte et de l'optimiseur
 criterion = nn.CrossEntropyLoss(weight=class_weights)  # Utilisation de la fonction de perte pondérée
-optimizer = optim.Adam(resnet.parameters(), lr=0.001)
+optimizer = optim.Adam(effnet.parameters(), lr=0.001)
 
 # Initialiser les listes pour stocker les données
 train_losses = []
@@ -102,12 +103,11 @@ class1_recall = []
 class1_f1score = []
 class1_score = []
 
-
 # Entraînement du modèle
-num_epochs = 50 # Nombre d'époques d'entraînement
+num_epochs = 20  # Nombre d'époques d'entraînement
 
 # Mettre le modèle en mode d'entraînement
-resnet.train()
+effnet.train()
 
 for epoch in range(num_epochs):
     running_loss = 0.0
@@ -121,7 +121,7 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
 
         # Propagation avant (forward pass)
-        outputs = resnet(inputs)
+        outputs = effnet(inputs)
 
         # Calcul de la perte
         loss = criterion(outputs, labels)
@@ -132,11 +132,11 @@ for epoch in range(num_epochs):
 
         running_loss += loss.item()
 
-        # Calcul de la précision sur les données d'entraînement
+         # Calcul de la précision sur les données d'entraînement
         _, predicted = torch.max(outputs.data, 1)
         total_train += labels.size(0)
         correct_train += (predicted == labels).sum().item()
-
+    
     # Calcul de la perte moyenne sur cette époque pour les données d'entraînement
     epoch_loss_train = running_loss / len(train_loader)
     train_losses.append(epoch_loss_train)
@@ -149,7 +149,7 @@ for epoch in range(num_epochs):
     print(f"Époque [{epoch + 1}/{num_epochs}] - Perte (entraînement) : {epoch_loss_train:.4f} - Précision (entraînement) : {accuracy_train:.2f}%")
 
     # Évaluation sur les données de validation
-    resnet.eval()  # Mettre le modèle en mode d'évaluation
+    effnet.eval()  # Mettre le modèle en mode d'évaluation
 
     correct_val = 0
     total_val = 0
@@ -162,7 +162,7 @@ for epoch in range(num_epochs):
     with torch.no_grad():
         for inputs, labels in val_loader:
             inputs, labels = inputs.to(device), labels.to(device)
-            outputs = resnet(inputs)
+            outputs = effnet(inputs)
             _, predicted = torch.max(outputs.data, 1)
             total_val += labels.size(0)
             correct_val += (predicted == labels).sum().item()
@@ -181,13 +181,11 @@ for epoch in range(num_epochs):
     # Afficher ou sauvegarder les résultats
     print(f"Époque [{epoch + 1}/{num_epochs}] - Perte (validation) : {epoch_loss_val:.4f} - Précision (validation) : {accuracy_val:.2f}%")
 
-    # Revenir en mode d'entraînement
-    resnet.train()
+    effnet.train()
 
     target_names = ['Non-mélanome', 'Mélanome']  # Remplacez par les noms de vos classes
     classification_rep = classification_report(all_labels, all_predicted, target_names=target_names, output_dict=True)
 
-    # Afficher les métriques pour chaque classe
     for i, class_name in enumerate(target_names):
         metrics = classification_rep[class_name]
         precision = metrics['precision']
@@ -206,7 +204,7 @@ for epoch in range(num_epochs):
           class1_recall.append(recall)
           class1_f1score.append(f1_score)
           class1_score.append(support)
-
+        
 # Sauvegarder les données
 result_data = pd.DataFrame({
     'train_loss': train_losses,
@@ -231,11 +229,11 @@ result_data = pd.DataFrame({
 })
 result_data.to_csv('melanoms_metrics.csv', index=False)
 
-# Sauvegarder le modèle
-torch.save({
-    'model': resnet.state_dict(),
-    'optimizer': optimizer.state_dict(),
-    'result_data': result_data
-}, 'test_accuracy_perte.pth')
-
 print("Entraînement terminé.")
+
+# Pour sauvegarder le modèle
+torch.save({
+    'model': effnet.state_dict(),  # Enregistrez les poids du modèle
+    'optimizer': optimizer.state_dict(),  # Enregistrez l'état de l'optimiseur si nécessaire
+}, 'hair_efficientnet_b0_20ep_64batch.pth')
+
