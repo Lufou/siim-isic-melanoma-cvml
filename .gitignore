@@ -1,3 +1,6 @@
 test-resized
 train-resized
 train-labels.csv
+train-resized.zip
+test-resized.zip
+*.pth
