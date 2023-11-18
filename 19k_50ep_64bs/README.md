@@ -1,0 +1,1 @@
+Link to the pth : https://www.mediafire.com/file/aunj0xptppim0ym/test_accuracy_perte.pth/file
