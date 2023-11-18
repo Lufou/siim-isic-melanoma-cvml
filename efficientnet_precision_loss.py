@@ -28,7 +28,7 @@ train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
 train_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.RandomVerticalFlip(),
-    transforms.RandomRotation(30),  # Rotation aléatoire de l'image jusqu'à 30 degrés
+    #transforms.RandomRotation(90),  # Rotation aléatoire de l'image jusqu'à 90 degrés
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -73,7 +73,7 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 # Charger le modèle EfficientNet pré-entraîné
-effnet = timm.create_model('efficientnet_b0', pretrained=True)
+effnet = timm.create_model('efficientnet_b6', pretrained=False)
 
 # Modifier la dernière couche de classification
 num_classes = 2  # Deux classes
