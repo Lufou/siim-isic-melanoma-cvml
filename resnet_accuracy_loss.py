@@ -11,29 +11,26 @@ from sklearn.metrics import classification_report
 import warnings
 import numpy as np
 
-# Ignorer les avertissements
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
-#Vérifier la disponibilité de la GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Charger le fichier train-labels.csv
 df = pd.read_csv("train-labels_19K.csv")
 
-# Diviser les données en ensembles d'entraînement et de validation
+# Diviser les ensembles d'entraînement et de validation
 train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
 
-# Définir les transformations d'images pour l'augmentation de données
+# Ensemble des fonctions de transformation d'images pour augmenter les données
 train_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.RandomVerticalFlip(),
-    #transforms.RandomRotation(90),  # Rotation aléatoire de l'image jusqu'à 90 degrés
+    #transforms.RandomRotation(90),
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-# Créer des ensembles de données personnalisés
 class CustomDataset(Dataset):
     def __init__(self, dataframe, transform=None):
         self.dataframe = dataframe
@@ -45,14 +42,14 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         img_name = "train-resized_19K/" + self.dataframe.iloc[idx, 0] + ".jpg"
         image = default_loader(img_name)
-        label = int(self.dataframe.iloc[idx, 1])  # Utilisation de la colonne "target" comme étiquette
+        label = int(self.dataframe.iloc[idx, 1])
 
         if self.transform:
             image = self.transform(image)
 
         return image, label
 
-# Créer des ensembles de données pour l'entraînement et la validation
+# Créer les ensembles de données pour l'entraînement et la validation grâce aux fonctions de transformation
 train_dataset = CustomDataset(train_df, transform=train_transform)
 val_dataset = CustomDataset(val_df, transform=transforms.Compose([
     transforms.Resize((224, 224)),
@@ -66,28 +63,26 @@ class_weights = compute_class_weight('balanced', classes=[0, 1], y=class_labels)
 class_weights = torch.FloatTensor(class_weights)
 class_weights = class_weights.to(device)
 
-# Créer des chargeurs de données avec un échantillonnage équilibré
+# Créer des chargeurs de données
 batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-# Charger le modèle Resnet pré-entraîné
+# Charger le modèle ResNet pré-entraîné
 resnet = models.resnet18(pretrained=True)
 
-# Modifier la dernière couche de classification
-num_classes = 2  # Deux classes
-# Récupérer la taille de la dernière couche de caractéristiques
+
+num_classes = 2
+
 num_ftrs = resnet.fc.in_features
 resnet.fc = nn.Linear(num_ftrs, num_classes)
 
-# Déplacer le modèle sur la GPU (si disponible)
 resnet = resnet.to(device)
 
-# Définition de la fonction de perte et de l'optimiseur
-criterion = nn.CrossEntropyLoss(weight=class_weights)  # Utilisation de la fonction de perte pondérée
+# Fonctions de perte et de l'optimiseur
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.Adam(resnet.parameters(), lr=0.001)
 
-# Initialiser les listes pour stocker les données
 train_losses = []
 train_accuracies = []
 val_losses = []
@@ -103,10 +98,9 @@ class1_f1score = []
 class1_score = []
 
 
-# Entraînement du modèle
-num_epochs = 50 # Nombre d'époques d'entraînement
+num_epochs = 50
 
-# Mettre le modèle en mode d'entraînement
+# Passer en mode entraînement
 resnet.train()
 
 for epoch in range(num_epochs):
@@ -117,39 +111,33 @@ for epoch in range(num_epochs):
     for inputs, labels in train_loader:
         inputs, labels = inputs.to(device), labels.to(device)
 
-        # Remettre à zéro les gradients
         optimizer.zero_grad()
 
-        # Propagation avant (forward pass)
         outputs = resnet(inputs)
 
-        # Calcul de la perte
         loss = criterion(outputs, labels)
 
-        # Rétropropagation et mise à jour des poids
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
 
-        # Calcul de la précision sur les données d'entraînement
         _, predicted = torch.max(outputs.data, 1)
         total_train += labels.size(0)
         correct_train += (predicted == labels).sum().item()
 
-    # Calcul de la perte moyenne sur cette époque pour les données d'entraînement
+    # Calcul de la perte moyenne sur l'époque
     epoch_loss_train = running_loss / len(train_loader)
     train_losses.append(epoch_loss_train)
 
-    # Calcul de la précision sur les données d'entraînement
+    # Calcul de la précision
     accuracy_train = 100 * correct_train / total_train
     train_accuracies.append(accuracy_train)
 
-    # Afficher ou sauvegarder les résultats
     print(f"Époque [{epoch + 1}/{num_epochs}] - Perte (entraînement) : {epoch_loss_train:.4f} - Précision (entraînement) : {accuracy_train:.2f}%")
 
-    # Évaluation sur les données de validation
-    resnet.eval()  # Mettre le modèle en mode d'évaluation
+    # Passer en mode validation
+    resnet.eval()
 
     correct_val = 0
     total_val = 0
@@ -158,7 +146,6 @@ for epoch in range(num_epochs):
     all_predicted = []
     all_labels = []
 
-    # Ne pas calculer de gradients lors de l'évaluation
     with torch.no_grad():
         for inputs, labels in val_loader:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -170,24 +157,23 @@ for epoch in range(num_epochs):
 
             all_predicted.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
-    # Calcul de la perte moyenne sur cette époque pour les données de validation
+    
+    # Calcul de la perte moyenne sur l'époque
     epoch_loss_val = val_loss / len(val_loader)
     val_losses.append(epoch_loss_val)
 
-    # Calcul de la précision sur les données de validation
+    # Calcul de la précision
     accuracy_val = 100 * correct_val / total_val
     val_accuracies.append(accuracy_val)
 
-    # Afficher ou sauvegarder les résultats
     print(f"Époque [{epoch + 1}/{num_epochs}] - Perte (validation) : {epoch_loss_val:.4f} - Précision (validation) : {accuracy_val:.2f}%")
 
     # Revenir en mode d'entraînement
     resnet.train()
 
-    target_names = ['Non-mélanome', 'Mélanome']  # Remplacez par les noms de vos classes
+    target_names = ['Non-mélanome', 'Mélanome']
     classification_rep = classification_report(all_labels, all_predicted, target_names=target_names, output_dict=True)
 
-    # Afficher les métriques pour chaque classe
     for i, class_name in enumerate(target_names):
         metrics = classification_rep[class_name]
         precision = metrics['precision']
@@ -239,3 +225,4 @@ torch.save({
 }, 'test_accuracy_perte.pth')
 
 print("Entraînement terminé.")
+
