@@ -13,28 +13,23 @@ image_counter = 0
 def draw_hairs(image):
     draw = ImageDraw.Draw(image)
     width, height = image.size
-
     for _ in range(10):  #10 cheveux
         # coordonnées début du cheveu
         start_x = random.randint(0, width)
         start_y = random.randint(0, height)
-        
         length = random.randint(10, 100)   # longueur du cheveu
         angle = random.uniform(20, 60)   #
         wave_amplitude = random.randint(5, 10)  # amplitude de l'ondulation
         wave_frequency = random.uniform(0.01, 0.05)  # fréquence de l'ondulation
-
         # coordonnées fin du cheveu
         end_x = start_x + int(length * math.cos(math.radians(angle)))
         end_y = start_y - int(length * math.sin(math.radians(angle)))
-
         # cheveu sous forme de courbe Bézier
         points = [(start_x, start_y)]
         for t in range(1, 101):
             x = int(start_x + t / 100 * (end_x - start_x))
             y = int(start_y + t / 100 * (end_y - start_y) + wave_amplitude * math.sin(wave_frequency * t))
             points.append((x, y))
-
         hair_color = (0, 0, 0)  # Noir 
         hair_thickness = random.uniform(0.5, 0.9)
         draw.line(points, fill=hair_color, width=int(hair_thickness))
@@ -44,12 +39,10 @@ def draw_hairs(image):
 def add_ink_drops(image, num_drops):
     draw = ImageDraw.Draw(image)
     width, height = image.size
-
     for _ in range(num_drops):
         # coordonnée la goutte d'encre
         drop_x = random.randint(0, width)
         drop_y = random.randint(0, height)
-       
         drop_size = random.randint(5, 20)  # taille de la goutte
         ink_color = (0, 0, 255)  # Bleu
         draw.ellipse([drop_x, drop_y, drop_x + drop_size, drop_y + drop_size], fill=ink_color)
